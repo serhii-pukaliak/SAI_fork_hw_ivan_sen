@@ -13,6 +13,7 @@ static const char* test_profile_get_value(
 {
     (void)profile_id;
     (void)variable;
+    
     return 0;
 }
 
@@ -24,6 +25,7 @@ static int test_profile_get_next_value(
     (void)profile_id;
     (void)variable;
     (void)value;
+    
     return -1;
 }
 
@@ -38,6 +40,7 @@ static int fail_if(sai_status_t status, const char *where)
         printf("FAIL at %s: status=%d\n", where, status);
         return 1;
     }
+    
     return 0;
 }
 
@@ -89,6 +92,7 @@ int main(void)
 
     if (sw_attrs[0].value.objlist.count < 4) {
         printf("FAIL: need at least 4 ports, got %u\n", sw_attrs[0].value.objlist.count);
+        
         return 1;
     }
 
@@ -125,20 +129,24 @@ int main(void)
     lag_get[0].id = SAI_LAG_ATTR_PORT_LIST;
     lag_get[0].value.objlist.list = lag_ports_buf;
     lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
-    (void)lag_api->get_lag_attribute(lag1, 1, lag_get);
+    status = lag_api->get_lag_attribute(lag1, 1, lag_get);
+    if (fail_if(status, "get_lag_attribute(LAG1)")) return 1;
     print_oid_list("LAG1 PORT_LIST", &lag_get[0].value.objlist);
 
     lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
-    (void)lag_api->get_lag_attribute(lag2, 1, lag_get);
+    status = lag_api->get_lag_attribute(lag2, 1, lag_get);
+    if (fail_if(status, "get_lag_attribute(LAG2)")) return 1;
     print_oid_list("LAG2 PORT_LIST", &lag_get[0].value.objlist);
 
     sai_attribute_t lm_get[1];
     lm_get[0].id = SAI_LAG_MEMBER_ATTR_LAG_ID;
-    (void)lag_api->get_lag_member_attribute(m1, 1, lm_get);
+    status = lag_api->get_lag_member_attribute(m1, 1, lm_get);
+    if (fail_if(status, "get_lag_member_attribute(m1)")) return 1;
     printf("LAG_MEMBER#1 LAG_ID: 0x%lX (expected 0x%lX)\n", lm_get[0].value.oid, lag1);
 
     lm_get[0].id = SAI_LAG_MEMBER_ATTR_PORT_ID;
-    (void)lag_api->get_lag_member_attribute(m3, 1, lm_get);
+    status = lag_api->get_lag_member_attribute(m3, 1, lm_get);
+    if (fail_if(status, "get_lag_member_attribute(m3)")) return 1;
     printf("LAG_MEMBER#3 PORT_ID: 0x%lX (expected 0x%lX)\n", lm_get[0].value.oid, port_list[2]);
 
     status = lag_api->remove_lag_member(m2);
@@ -153,14 +161,16 @@ int main(void)
     }
 
     lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
-    (void)lag_api->get_lag_attribute(lag1, 1, lag_get);
+    status = lag_api->get_lag_attribute(lag1, 1, lag_get);
+    if (fail_if(status, "get_lag_attribute(LAG1)")) return 1;
     print_oid_list("LAG1 PORT_LIST after removing member#2", &lag_get[0].value.objlist);
 
     status = lag_api->remove_lag_member(m3);
     if (fail_if(status, "remove_lag_member(m3)")) return 1;
 
     lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
-    (void)lag_api->get_lag_attribute(lag2, 1, lag_get);
+    status = lag_api->get_lag_attribute(lag2, 1, lag_get);
+    if (fail_if(status, "get_lag_attribute(LAG2)")) return 1;
     print_oid_list("LAG2 PORT_LIST after removing member#3", &lag_get[0].value.objlist);
 
     status = lag_api->remove_lag_member(m1);
@@ -176,8 +186,11 @@ int main(void)
     if (fail_if(status, "remove_lag(lag1)")) return 1;
 
     switch_api->shutdown_switch(0);
-    (void)sai_api_uninitialize();
+
+    status = sai_api_uninitialize();
+    if (fail_if(status, "sai_api_uninitialize")) return 1;
 
     printf("PASS\n");
+    
     return 0;
 }

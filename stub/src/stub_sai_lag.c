@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <stdbool.h>
 
 #include "sai.h"
 #include "stub_sai.h"
@@ -80,34 +81,46 @@ static const sai_vendor_attribute_entry_t lag_member_vendor_attribs[] = {
 
 static void lag_key_to_str(_In_ sai_object_id_t lag_id, _Out_ char *key_str)
 {
-    uint32_t lag_db_id;
-    if (SAI_STATUS_SUCCESS != stub_object_to_type(lag_id, SAI_OBJECT_TYPE_LAG, &lag_db_id)) {
+    uint32_t lag_db_id = 0;
+    sai_status_t status = stub_object_to_type(lag_id, SAI_OBJECT_TYPE_LAG, &lag_db_id);
+
+    if (status != SAI_STATUS_SUCCESS ||
+        lag_db_id >= MAX_NUMBER_OF_LAGS ||
+        !lag_db.lags[lag_db_id].is_used) {
         snprintf(key_str, MAX_KEY_STR_LEN, "invalid lag");
-    } else {
-        snprintf(key_str, MAX_KEY_STR_LEN, "lag %u", lag_db_id);
+        return;
     }
+
+    snprintf(key_str, MAX_KEY_STR_LEN, "lag %u", lag_db_id);
 }
 
 static void lag_member_key_to_str(_In_ sai_object_id_t lag_member_id, _Out_ char *key_str)
 {
-    uint32_t member_db_id;
-    if (SAI_STATUS_SUCCESS != stub_object_to_type(lag_member_id, SAI_OBJECT_TYPE_LAG_MEMBER, &member_db_id)) {
+    uint32_t member_db_id = 0;
+    sai_status_t status = stub_object_to_type(lag_member_id, SAI_OBJECT_TYPE_LAG_MEMBER, &member_db_id);
+
+    if (status != SAI_STATUS_SUCCESS ||
+        member_db_id >= MAX_NUMBER_OF_LAG_MEMBERS ||
+        !lag_db.members[member_db_id].is_used) {
         snprintf(key_str, MAX_KEY_STR_LEN, "invalid lag_member");
-    } else {
-        snprintf(key_str, MAX_KEY_STR_LEN, "lag_member %u", member_db_id);
+        return;
     }
+
+    snprintf(key_str, MAX_KEY_STR_LEN, "lag_member %u", member_db_id);
 }
 
 static sai_status_t validate_port_oid(_In_ sai_object_id_t port_oid)
 {
-    uint32_t port_db_id;
+    uint32_t port_db_id = 0;
     sai_status_t status = stub_object_to_type(port_oid, SAI_OBJECT_TYPE_PORT, &port_db_id);
+
     if (status != SAI_STATUS_SUCCESS) {
         return status;
     }
     if (port_db_id >= PORT_NUMBER) {
         return SAI_STATUS_INVALID_OBJECT_ID;
     }
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -116,10 +129,10 @@ sai_status_t stub_create_lag(
     _In_ uint32_t attr_count,
     _In_ sai_attribute_t *attr_list)
 {
-    sai_status_t status;
-    uint32_t ii;
-    uint32_t lag_db_id;
-    char list_str[MAX_LIST_VALUE_STR_LEN];
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t ii = 0;
+    uint32_t lag_db_id = 0;
+    char list_str[MAX_LIST_VALUE_STR_LEN] = {0};
 
     if (lag_id == NULL) {
         return SAI_STATUS_INVALID_PARAMETER;
@@ -155,20 +168,25 @@ sai_status_t stub_create_lag(
     }
 
     printf("CREATE LAG: 0x%lX (%s)\n", *lag_id, list_str);
+
     return SAI_STATUS_SUCCESS;
 }
 
 sai_status_t stub_remove_lag(
     _In_ sai_object_id_t lag_id)
 {
-    sai_status_t status;
-    uint32_t lag_db_id;
-    uint32_t ii;
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t lag_db_id = 0;
+    uint32_t ii = 0;
 
     status = stub_object_to_type(lag_id, SAI_OBJECT_TYPE_LAG, &lag_db_id);
     if (status != SAI_STATUS_SUCCESS) {
-        printf("Cannot get LAG DB ID.\n");
+        printf("Cannot get LAG DB ID (OID: 0x%lX).\n", lag_id);
         return status;
+    }
+    if (lag_db_id >= MAX_NUMBER_OF_LAGS) {
+        printf("LAG DB ID out of range: %u (OID: 0x%lX).\n", lag_db_id, lag_id);
+        return SAI_STATUS_INVALID_OBJECT_ID;
     }
     if (!lag_db.lags[lag_db_id].is_used) {
         return SAI_STATUS_INVALID_OBJECT_ID;
@@ -185,6 +203,7 @@ sai_status_t stub_remove_lag(
     memset(lag_db.lags[lag_db_id].members_ids, 0, sizeof(lag_db.lags[lag_db_id].members_ids));
 
     printf("REMOVE LAG: 0x%lX\n", lag_id);
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -194,7 +213,9 @@ sai_status_t stub_set_lag_attribute(
 {
     (void)lag_id;
     (void)attr;
+
     printf("SET LAG ATTRIBUTE called\n");
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -204,9 +225,10 @@ sai_status_t stub_get_lag_attribute(
     _Inout_ sai_attribute_t *attr_list)
 {
     const sai_object_key_t key = { .object_id = lag_id };
-    char key_str[MAX_KEY_STR_LEN];
+    char key_str[MAX_KEY_STR_LEN] = {0};
 
     lag_key_to_str(lag_id, key_str);
+
     return sai_get_attributes(&key, key_str, lag_attribs, lag_vendor_attribs, attr_count, attr_list);
 }
 
@@ -215,18 +237,18 @@ sai_status_t stub_create_lag_member(
     _In_ uint32_t attr_count,
     _In_ sai_attribute_t *attr_list)
 {
-    sai_status_t status;
-    uint32_t ii;
-    uint32_t member_db_id;
-    uint32_t lag_db_id;
-    uint32_t slot;
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t ii = 0;
+    uint32_t member_db_id = 0;
+    uint32_t lag_db_id = 0;
+    uint32_t slot = 0;
 
-    const sai_attribute_value_t *lag_id_attr;
-    const sai_attribute_value_t *port_id_attr;
-    uint32_t lag_id_idx;
-    uint32_t port_id_idx;
+    const sai_attribute_value_t *lag_id_attr = NULL;
+    const sai_attribute_value_t *port_id_attr = NULL;
+    uint32_t lag_id_idx = 0;
+    uint32_t port_id_idx = 0;
 
-    char list_str[MAX_LIST_VALUE_STR_LEN];
+    char list_str[MAX_LIST_VALUE_STR_LEN] = {0};
 
     if (lag_member_id == NULL) {
         return SAI_STATUS_INVALID_PARAMETER;
@@ -255,7 +277,7 @@ sai_status_t stub_create_lag_member(
     }
 
     status = stub_object_to_type(lag_id_attr->oid, SAI_OBJECT_TYPE_LAG, &lag_db_id);
-    if (status != SAI_STATUS_SUCCESS || !lag_db.lags[lag_db_id].is_used) {
+    if (status != SAI_STATUS_SUCCESS || lag_db_id >= MAX_NUMBER_OF_LAGS || !lag_db.lags[lag_db_id].is_used) {
         printf("CREATE LAG_MEMBER: invalid LAG OID\n");
         return SAI_STATUS_INVALID_OBJECT_ID;
     }
@@ -266,7 +288,6 @@ sai_status_t stub_create_lag_member(
         return status;
     }
 
-    /* allocate member db entry */
     for (ii = 0; ii < MAX_NUMBER_OF_LAG_MEMBERS; ii++) {
         if (!lag_db.members[ii].is_used) {
             break;
@@ -302,37 +323,58 @@ sai_status_t stub_create_lag_member(
     lag_db.lags[lag_db_id].members_ids[slot] = *lag_member_id;
 
     printf("CREATE LAG_MEMBER: 0x%lX (%s)\n", *lag_member_id, list_str);
+
     return SAI_STATUS_SUCCESS;
 }
 
 sai_status_t stub_remove_lag_member(
     _In_ sai_object_id_t lag_member_id)
 {
-    sai_status_t status;
-    uint32_t member_db_id;
-    uint32_t lag_db_id;
-    uint32_t ii;
-    sai_object_id_t lag_oid;
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t member_db_id = 0;
+    uint32_t lag_db_id = 0;
+    uint32_t ii = 0;
+    sai_object_id_t lag_oid = 0;
+    bool found_in_lag = false;
 
     status = stub_object_to_type(lag_member_id, SAI_OBJECT_TYPE_LAG_MEMBER, &member_db_id);
     if (status != SAI_STATUS_SUCCESS) {
-        printf("Cannot get LAG_MEMBER DB ID.\n");
+        printf("Cannot get LAG_MEMBER DB ID (OID: 0x%lX).\n", lag_member_id);
         return status;
     }
+
+    if (member_db_id >= MAX_NUMBER_OF_LAG_MEMBERS) {
+        printf("LAG_MEMBER DB ID out of range: %u (OID: 0x%lX).\n", member_db_id, lag_member_id);
+        return SAI_STATUS_INVALID_OBJECT_ID;
+    }
+
     if (!lag_db.members[member_db_id].is_used) {
+        printf("Invalid LAG_MEMBER OID: 0x%lX (DB ID: %u is not used).\n", lag_member_id, member_db_id);
         return SAI_STATUS_INVALID_OBJECT_ID;
     }
 
     lag_oid = lag_db.members[member_db_id].lag_oid;
 
     status = stub_object_to_type(lag_oid, SAI_OBJECT_TYPE_LAG, &lag_db_id);
-    if (status == SAI_STATUS_SUCCESS && lag_db.lags[lag_db_id].is_used) {
+    if (status == SAI_STATUS_SUCCESS &&
+        lag_db_id < MAX_NUMBER_OF_LAGS &&
+        lag_db.lags[lag_db_id].is_used) {
+
         for (ii = 0; ii < MAX_NUMBER_OF_LAG_MEMBERS; ii++) {
             if (lag_db.lags[lag_db_id].members_ids[ii] == lag_member_id) {
                 lag_db.lags[lag_db_id].members_ids[ii] = 0;
+                found_in_lag = true;
                 break;
             }
         }
+
+        if (!found_in_lag) {
+            printf("LAG MEMBER (OID: 0x%lX) is not in LAG (OID: 0x%lX).\n",
+                   lag_member_id, lag_oid);
+        }
+    } else {
+        printf("LAG MEMBER (OID: 0x%lX) references invalid LAG (OID: 0x%lX).\n",
+               lag_member_id, lag_oid);
     }
 
     lag_db.members[member_db_id].is_used = false;
@@ -340,6 +382,7 @@ sai_status_t stub_remove_lag_member(
     lag_db.members[member_db_id].port_oid = 0;
 
     printf("REMOVE LAG_MEMBER: 0x%lX\n", lag_member_id);
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -349,7 +392,9 @@ sai_status_t stub_set_lag_member_attribute(
 {
     (void)lag_member_id;
     (void)attr;
+
     printf("SET LAG_MEMBER ATTRIBUTE called\n");
+
     return SAI_STATUS_SUCCESS;
 }
 
@@ -359,9 +404,10 @@ sai_status_t stub_get_lag_member_attribute(
     _Inout_ sai_attribute_t *attr_list)
 {
     const sai_object_key_t key = { .object_id = lag_member_id };
-    char key_str[MAX_KEY_STR_LEN];
+    char key_str[MAX_KEY_STR_LEN] = {0};
 
     lag_member_key_to_str(lag_member_id, key_str);
+
     return sai_get_attributes(&key, key_str, lag_member_attribs, lag_member_vendor_attribs, attr_count, attr_list);
 }
 
@@ -372,10 +418,9 @@ static sai_status_t get_lag_member_attribute(
     _Inout_ vendor_cache_t        *cache,
     void                          *arg)
 {
-    sai_status_t status;
-    uint32_t member_db_id;
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t member_db_id = 0;
 
-    (void)attr_index;
     (void)cache;
 
     status = stub_object_to_type(key->object_id, SAI_OBJECT_TYPE_LAG_MEMBER, &member_db_id);
@@ -383,7 +428,7 @@ static sai_status_t get_lag_member_attribute(
         printf("Cannot get LAG_MEMBER DB index.\n");
         return status;
     }
-    if (!lag_db.members[member_db_id].is_used) {
+    if (member_db_id >= MAX_NUMBER_OF_LAG_MEMBERS || !lag_db.members[member_db_id].is_used) {
         return SAI_STATUS_INVALID_OBJECT_ID;
     }
 
@@ -396,7 +441,7 @@ static sai_status_t get_lag_member_attribute(
             break;
         default:
             printf("Got unexpected LAG_MEMBER attribute ID\n");
-            return SAI_STATUS_FAILURE;
+            return SAI_STATUS_ATTR_NOT_SUPPORTED_0 + attr_index;
     }
 
     return SAI_STATUS_SUCCESS;
@@ -409,14 +454,13 @@ static sai_status_t get_lag_attribute(
     _Inout_ vendor_cache_t        *cache,
     void                          *arg)
 {
-    sai_status_t status;
-    uint32_t lag_db_id;
-    uint32_t ii;
+    sai_status_t status = SAI_STATUS_SUCCESS;
+    uint32_t lag_db_id = 0;
+    uint32_t ii = 0;
 
-    sai_object_id_t ports[MAX_NUMBER_OF_LAG_MEMBERS];
+    sai_object_id_t ports[MAX_NUMBER_OF_LAG_MEMBERS] = {0};
     uint32_t port_count = 0;
 
-    (void)attr_index;
     (void)cache;
 
     status = stub_object_to_type(key->object_id, SAI_OBJECT_TYPE_LAG, &lag_db_id);
@@ -424,7 +468,7 @@ static sai_status_t get_lag_attribute(
         printf("Cannot get LAG DB index.\n");
         return status;
     }
-    if (!lag_db.lags[lag_db_id].is_used) {
+    if (lag_db_id >= MAX_NUMBER_OF_LAGS || !lag_db.lags[lag_db_id].is_used) {
         return SAI_STATUS_INVALID_OBJECT_ID;
     }
 
@@ -432,13 +476,16 @@ static sai_status_t get_lag_attribute(
         case SAI_LAG_ATTR_PORT_LIST:
             for (ii = 0; ii < MAX_NUMBER_OF_LAG_MEMBERS; ii++) {
                 sai_object_id_t member_oid = lag_db.lags[lag_db_id].members_ids[ii];
-                uint32_t member_db_id;
+                uint32_t member_db_id = 0;
 
                 if (member_oid == 0) {
                     continue;
                 }
 
                 if (stub_object_to_type(member_oid, SAI_OBJECT_TYPE_LAG_MEMBER, &member_db_id) != SAI_STATUS_SUCCESS) {
+                    continue;
+                }
+                if (member_db_id >= MAX_NUMBER_OF_LAG_MEMBERS) {
                     continue;
                 }
                 if (!lag_db.members[member_db_id].is_used) {
@@ -464,12 +511,11 @@ static sai_status_t get_lag_attribute(
 
         default:
             printf("Got unexpected LAG attribute ID\n");
-            return SAI_STATUS_FAILURE;
+            return SAI_STATUS_ATTR_NOT_SUPPORTED_0 + attr_index;
     }
 
     return SAI_STATUS_SUCCESS;
 }
-
 
 const sai_lag_api_t lag_api = {
     stub_create_lag,
