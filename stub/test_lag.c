@@ -2,6 +2,11 @@
 #include <string.h>
 #include "sai.h"
 
+enum {
+    TEST_MAX_PORTS = 64,
+    TEST_MAX_LAG_MEMBERS = 16
+};
+
 static const char* test_profile_get_value(
     _In_ sai_switch_profile_id_t profile_id,
     _In_ const char* variable)
@@ -47,7 +52,7 @@ static void print_oid_list(const char *label, const sai_object_list_t *lst)
 
 int main(void)
 {
-    sai_status_t status;
+    sai_status_t status = SAI_STATUS_SUCCESS;
 
     sai_switch_api_t *switch_api = NULL;
     sai_lag_api_t    *lag_api    = NULL;
@@ -55,7 +60,7 @@ int main(void)
     sai_switch_notification_t notifications;
     memset(&notifications, 0, sizeof(notifications));
 
-    sai_object_id_t port_list[64];
+    sai_object_id_t port_list[TEST_MAX_PORTS];
     sai_attribute_t sw_attrs[1];
 
     sai_object_id_t lag1, lag2;
@@ -77,7 +82,7 @@ int main(void)
 
     sw_attrs[0].id = SAI_SWITCH_ATTR_PORT_LIST;
     sw_attrs[0].value.objlist.list  = port_list;
-    sw_attrs[0].value.objlist.count = 64;
+    sw_attrs[0].value.objlist.count = TEST_MAX_PORTS;
 
     status = switch_api->get_switch_attribute(1, sw_attrs);
     if (fail_if(status, "get_switch_attribute(PORT_LIST)")) return 1;
@@ -115,15 +120,15 @@ int main(void)
     status = lag_api->create_lag_member(&m4, 2, attrs);
     if (fail_if(status, "create_lag_member(m4)")) return 1;
 
-    sai_object_id_t lag_ports_buf[16];
+    sai_object_id_t lag_ports_buf[TEST_MAX_LAG_MEMBERS];
     sai_attribute_t lag_get[1];
     lag_get[0].id = SAI_LAG_ATTR_PORT_LIST;
     lag_get[0].value.objlist.list = lag_ports_buf;
-    lag_get[0].value.objlist.count = 16;
+    lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
     (void)lag_api->get_lag_attribute(lag1, 1, lag_get);
     print_oid_list("LAG1 PORT_LIST", &lag_get[0].value.objlist);
 
-    lag_get[0].value.objlist.count = 16;
+    lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
     (void)lag_api->get_lag_attribute(lag2, 1, lag_get);
     print_oid_list("LAG2 PORT_LIST", &lag_get[0].value.objlist);
 
@@ -147,14 +152,14 @@ int main(void)
         printf("OK: remove_lag(lag1) blocked while members exist\n");
     }
 
-    lag_get[0].value.objlist.count = 16;
+    lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
     (void)lag_api->get_lag_attribute(lag1, 1, lag_get);
     print_oid_list("LAG1 PORT_LIST after removing member#2", &lag_get[0].value.objlist);
 
     status = lag_api->remove_lag_member(m3);
     if (fail_if(status, "remove_lag_member(m3)")) return 1;
 
-    lag_get[0].value.objlist.count = 16;
+    lag_get[0].value.objlist.count = TEST_MAX_LAG_MEMBERS;
     (void)lag_api->get_lag_attribute(lag2, 1, lag_get);
     print_oid_list("LAG2 PORT_LIST after removing member#3", &lag_get[0].value.objlist);
 
