@@ -7,6 +7,8 @@ ASIC, an NPU or a software switch in a uniform manner.
 
 
 ## Testing results:
+
+```bash
 $ ./unit_test_lag 
 CREATE LAG: 0x2 (empty list)
 CREATE LAG_MEMBER: 0x19 (#0 PORT ID val:Port type 0 #1 LAG ID val:LAG type 0 )
@@ -29,3 +31,4 @@ REMOVE LAG_MEMBER: 0x300000019
 REMOVE LAG: 0x100000002
 REMOVE LAG: 0x2
 PASS
+```
