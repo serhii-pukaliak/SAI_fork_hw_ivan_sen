@@ -15,7 +15,7 @@
  *
  */
 
-#if !defined (__STUBAI_H_)
+#if !defined (__STUBSAI_H_)
 #define __STUBSAI_H_
 
 #include <sai.h>
@@ -39,7 +39,7 @@ extern const sai_next_hop_group_api_t   next_hop_group_api;
 extern const sai_router_interface_api_t router_interface_api;
 extern const sai_vlan_api_t             vlan_api;
 extern const sai_hostif_api_t           host_interface_api;
-
+extern const sai_lag_api_t              lag_api;
 /*
  *  SAI operation type
  *  Values must start with 0 base and be without gaps
